@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  accounts      Account[]
+  sessions      Session[]
+  threads       Thread[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// Thread model for conversations
+model Thread {
+  id              String    @id @default(cuid())
+  title           String    @default("New Chat")
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages        Message[]
+  parentThreadId  String?   // Parent thread for nested threads
+  parentThread    Thread?   @relation("ThreadHierarchy", fields: [parentThreadId], references: [id], onDelete: Cascade)
+  childThreads    Thread[]  @relation("ThreadHierarchy")
+  parentMessageId String?   // The message ID this thread branched from
+  selectedContext String?   @db.Text // The selected text that started this thread
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([parentThreadId])
+}
+
+// Message model for chat messages
+model Message {
+  id           String   @id @default(cuid())
+  role         String   // 'user' | 'assistant'
+  content      String   @db.Text
+  threadId     String
+  thread       Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  selectedText String?  @db.Text // Text selected for follow-up in this message
+  createdAt    DateTime @default(now())
+
+  @@index([threadId])
+}
+
+// NextAuth.js models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
